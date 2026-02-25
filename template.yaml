@@ -1,21 +1,34 @@
+# ZAP Automation Framework Template
+# This template defines the base configuration for ZAP scans
+# The action will automatically generate CWE-specific contexts and scan jobs based on Seqra findings
+
 env:
+  # Define application contexts (at least one required)
+  # The first context will be used as the base for generated CWE contexts
   contexts:
     - name: openapi-import
       urls:
         - http://localhost:8081
       includePaths: [ ]
       excludePaths: [ ]
+  
+  # Global parameters for the automation framework
   parameters:
     failOnError: false
     failOnWarning: false
     continueOnFailure: true
     progressToStdout: true
+
 jobs:
+  # 1. API Import (required)
+  # Import your API definition to discover endpoints
   - type: openapi
     parameters:
       context: openapi-import
       targetUrl: http://localhost:8081
       apiUrl: http://localhost:8081/v3/api-docs
+  
+  # 2. Active Scan Configuration (optional but recommended)
   - type: activeScan-config
     parameters:
       maxRuleDurationInMins: 0
@@ -46,6 +59,11 @@ jobs:
         enabled: true
         encodeCookieValues: false
       scripts: true
+  
+  # 3. CWE-Specific Policies (at least one required)
+  # Define policies for each CWE you want to scan
+  # Policy names MUST follow format: policy-CWE-{number}
+  # The action will only scan for CWEs that have matching policies
   - type: activeScan-policy
     parameters:
       name: policy-CWE-22
@@ -244,6 +262,11 @@ jobs:
         - id: 90036
           threshold: MEDIUM
           strength: INSANE
+  # 4. Report Jobs (optional - will be added automatically if missing)
+  # Reports are used for vulnerability confirmation and artifact upload
+  # reportDir will be automatically normalized to /zap/wrk/zap-output
+  
+  # JSON report (required for SARIF filtering)
   - type: report
     parameters:
       template: traditional-json
@@ -258,6 +281,7 @@ jobs:
       - high
       - medium
       - low
+
   - type: report
     parameters:
       template: traditional-html
