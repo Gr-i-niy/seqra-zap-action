@@ -64,15 +64,16 @@ inputs:
 runs:
   using: 'composite'
   steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-
     - name: Install uv
       uses: astral-sh/setup-uv@v7
 
     - name: Create scan results directory
       shell: bash
-      run: mkdir -p scan-results
+      run: |
+        mkdir -p scan-results/base
+        mkdir -p scan-results/current
+        mkdir -p zap-output
+        chmod 777 zap-output
 
     - name: Run Seqra scan (current branch)
       uses: seqra/seqra-action@v2
@@ -86,7 +87,7 @@ runs:
         verbosity: 'info'
         severity: 'warning,error'
 
-    - name: Download Seqra SARIF artifact
+    - name: Download Seqra SARIF artifact (current)
       uses: actions/download-artifact@v4
       with:
         name: 'seqra-sarif-current'
@@ -99,7 +100,7 @@ runs:
         ref: ${{ github.base_ref }}
         path: base-branch-checkout
 
-    - name: Run Seqra scan
+    - name: Run Seqra scan (base branch)
       if: inputs.mode == 'differential'
       uses: seqra/seqra-action@v2
       with:
@@ -112,23 +113,33 @@ runs:
         verbosity: 'info'
         severity: 'warning,error'
 
-    - name: Download Seqra SARIF artifact
+    - name: Download Seqra SARIF artifact (base)
       if: inputs.mode == 'differential'
       uses: actions/download-artifact@v4
       with:
         name: 'seqra-sarif-base'
         path: scan-results/base
 
+    - name: Delete temporary Seqra artifacts
+      uses: geekyeggo/delete-artifact@v5
+      with:
+        name: |
+          seqra-sarif-current
+          seqra-sarif-base
+        failOnError: false
+
     - name: Install python dependencies
       shell: bash
-      run: uv sync
+      run: |
+        cd ${{ github.action_path }}
+        uv sync
 
     - name: Generate ZAP automation configuration
       shell: bash
       run: |
         BASE_SARIF_ARG=""
         if [ "${{ inputs.mode }}" = "differential" ]; then
-          BASE_SARIF_ARG="--base-sarif scan-results/base/seqra.sarif"
+          BASE_SARIF_ARG="--base-sarif ${{ github.workspace }}/scan-results/base/seqra.sarif"
         fi
         
         CONTEXT_ARG=""
@@ -136,19 +147,18 @@ runs:
           CONTEXT_ARG="--context-name ${{ inputs.context-name }}"
         fi
         
-        uv run gen_auto.py \
-          --sarif scan-results/current/seqra.sarif \
+        cd ${{ github.action_path }}
+        uv run python gen_auto.py \
+          --sarif ${{ github.workspace }}/scan-results/current/seqra.sarif \
           $BASE_SARIF_ARG \
-          --template ${{ inputs.template }} \
+          --template ${{ github.workspace }}/${{ inputs.template }} \
           --target ${{ inputs.target }} \
-          --output scan-results/zap-automation.yaml \
+          --output ${{ github.workspace }}/scan-results/zap-automation.yaml \
           $CONTEXT_ARG
-        
-        mkdir zap-output
-        chmod 777 zap-output
 
     - name: Run ZAP automated scan
       uses: zaproxy/action-af@v0.2.0
+      continue-on-error: true
       with:
         plan: 'scan-results/zap-automation.yaml'
         docker_name: ${{ inputs.zap-docker-image }}
@@ -159,15 +169,16 @@ runs:
       id: filter-sarif
       shell: bash
       run: |
-        uv run filter_sarif.py \
-          --sarif scan-results/current/seqra.sarif \
-          --report zap-output/seqra_zap_scan_results.json \
-          --output scan-results/filtered-confirmed.sarif \
+        cd ${{ github.action_path }}
+        uv run python filter_sarif.py \
+          --sarif ${{ github.workspace }}/scan-results/current/seqra.sarif \
+          --report ${{ github.workspace }}/zap-output/seqra_zap_scan_results.json \
+          --output ${{ github.workspace }}/scan-results/filtered-confirmed.sarif \
           --verbose
 
     - name: Upload SARIF to GitHub Security
       if: inputs.upload-sarif == 'true'
-      uses: github/codeql-action/upload-sarif@v3
+      uses: github/codeql-action/upload-sarif@v4
       with:
         sarif_file: scan-results/filtered-confirmed.sarif
         category: seqra-zap-scan
@@ -175,11 +186,10 @@ runs:
     - name: Prepare artifact files
       shell: bash
       run: |
-        echo "Preparing artifact files based on scan mode..."
         mkdir -p artifact-upload
         
         if [ "${{ inputs.mode }}" = "differential" ]; then
-          cp sarif/filtered-seqra.sarif artifact-upload/filtered-seqra.sarif
+          cp scan-results/current/filtered-seqra.sarif artifact-upload/filtered-seqra.sarif
         else
           cp scan-results/current/seqra.sarif artifact-upload/seqra-scan.sarif
         fi

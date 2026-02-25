@@ -83,7 +83,7 @@ def main():
                         help='SARIF file to filter')
     parser.add_argument('--report', type=Path, required=True,
                         help='ZAP JSON report with confirmed vulnerabilities')
-    parser.add_argument('--output', type=Path, default=Path('sarif/filtered-confirmed.sarif'),
+    parser.add_argument('--output', type=Path, default=Path('scan-results/filtered-confirmed.sarif'),
                         help='Output filtered SARIF file')
     parser.add_argument('-v', '--verbose', action='store_true',
                         help='Enable verbose logging')

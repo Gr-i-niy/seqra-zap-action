@@ -303,7 +303,7 @@ def create_activescan_job(cwe_num: int, policy_name: str) -> dict:
 def run_seqra_scan(project_path: Path) -> Path:
     """Run Seqra scan and return SARIF path"""
     project_name = project_path.name
-    output_sarif = Path(f"sarif/{project_name}.sarif")
+    output_sarif = Path(f"scan-results/{project_name}.sarif")
     output_sarif = output_sarif.resolve()
     logger.info(f"Running Seqra scan on: {project_path}")
     output_sarif.parent.mkdir(parents=True, exist_ok=True)
@@ -342,7 +342,7 @@ def filter_sarif_by_base(base_sarif_path: Path, new_sarif_path: Path) -> Path:
         if hash_value not in base_hashes:
             filtered_results.append(result)
     filtered_sarif["runs"][0]["results"] = filtered_results
-    output_path = Path("sarif") / f"filtered-{new_sarif_path.name}"
+    output_path = new_sarif_path.parent / f"filtered-{new_sarif_path.name}"
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, 'w') as f:
         json.dump(filtered_sarif, f, indent=2)
