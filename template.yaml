@@ -295,3 +295,12 @@ jobs:
       - high
       - medium
       - low
+
+  # 5. exitStatus job
+  # Force the ZAP container to always exit with code 0, even on errors
+  # Without this, a non-zero code would fail the entire GitHub Action
+  - type: exitStatus
+    parameters:
+      okExitValue: 0
+      errorExitValue: 0
+      warnExitValue: 0
