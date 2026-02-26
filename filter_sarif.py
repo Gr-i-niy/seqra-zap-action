@@ -8,6 +8,8 @@ from urllib.parse import urlparse
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
+TOOL_NAME = "Seqra + ZAP"
+
 
 def extract_rule_cwe_mapping(sarif: dict) -> dict[str, int]:
     """Extract rule ID to CWE number mapping from SARIF"""
@@ -83,7 +85,7 @@ def main():
                         help='SARIF file to filter')
     parser.add_argument('--report', type=Path, required=True,
                         help='ZAP JSON report with confirmed vulnerabilities')
-    parser.add_argument('--output', type=Path, default=Path('scan-results/filtered-confirmed.sarif'),
+    parser.add_argument('--output', type=Path, default=Path('scan-results/validated.sarif'),
                         help='Output filtered SARIF file')
     parser.add_argument('-v', '--verbose', action='store_true',
                         help='Enable verbose logging')
@@ -110,6 +112,7 @@ def main():
         logger.debug(f"Extracted {len(rule_cwe)} rule-to-CWE mappings")
         confirmed_endpoints = extract_confirmed_endpoints(zap_report)
         filtered_sarif = filter_sarif_by_confirmed(sarif, confirmed_endpoints, rule_cwe)
+        filtered_sarif["runs"][0]["tool"]["driver"]["name"] = TOOL_NAME
         args.output.parent.mkdir(parents=True, exist_ok=True)
         with open(args.output, 'w') as f:
             json.dump(filtered_sarif, f, indent=2)

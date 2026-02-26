@@ -158,7 +158,6 @@ runs:
 
     - name: Run ZAP automated scan
       uses: zaproxy/action-af@v0.2.0
-      continue-on-error: true
       with:
         plan: 'scan-results/zap-automation.yaml'
         docker_name: ${{ inputs.zap-docker-image }}
@@ -173,28 +172,30 @@ runs:
         uv run python filter_sarif.py \
           --sarif ${{ github.workspace }}/scan-results/current/seqra.sarif \
           --report ${{ github.workspace }}/zap-output/seqra_zap_scan_results.json \
-          --output ${{ github.workspace }}/scan-results/filtered-confirmed.sarif \
+          --output ${{ github.workspace }}/scan-results/validated.sarif \
           --verbose
 
     - name: Upload SARIF to GitHub Security
       if: inputs.upload-sarif == 'true'
       uses: github/codeql-action/upload-sarif@v4
       with:
-        sarif_file: scan-results/filtered-confirmed.sarif
+        sarif_file: scan-results/validated.sarif
         category: seqra-zap-scan
 
     - name: Prepare artifact files
+      if: always()
       shell: bash
       run: |
         mkdir -p artifact-upload
         
         if [ "${{ inputs.mode }}" = "differential" ]; then
-          cp scan-results/current/filtered-seqra.sarif artifact-upload/filtered-seqra.sarif
+          cp scan-results/current/filtered-seqra.sarif artifact-upload/seqra.sarif 2>/dev/null || true
         else
-          cp scan-results/current/seqra.sarif artifact-upload/seqra-scan.sarif
+          cp scan-results/current/seqra.sarif artifact-upload/seqra.sarif 2>/dev/null || true
         fi
-        cp scan-results/filtered-confirmed.sarif artifact-upload/
-        cp -r zap-output/* artifact-upload/
+        cp scan-results/validated.sarif artifact-upload/ 2>/dev/null || true
+        cp scan-results/zap-automation.yaml artifact-upload/ || true
+        cp -r zap-output/* artifact-upload/ 2>/dev/null || true
 
     - name: Upload scan results artifact
       uses: actions/upload-artifact@v4
